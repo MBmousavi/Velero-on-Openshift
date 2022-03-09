@@ -225,12 +225,23 @@ velero install \
       --plugins velero/velero-plugin-for-aws:v1.1.0 \
       --bucket velero \
       --secret-file ./credentials-velero \
-	    --use-volume-snapshots=false \
+      --use-volume-snapshots=false \
       --backup-location-config region=minio,s3ForcePathStyle="true",s3Url=http://minio.velero.svc:9000 \
-	    --use-restic && oc patch ds/restic --namespace velero --type json -p '[{"op":"add","path":"/spec/template/spec/containers/0/securityContext","value": { "privileged": true}}]'
-      ```	  
+      --use-restic
+```
 
+If Restic is not running in a privileged mode, it will not be able to access pods volumes within the mounted hostpath directory because of the default enforced SELinux mode configured in the host system level. You can create a custom SCC to relax the security in your cluster so that Restic pods are allowed to use the hostPath volume plug-in without granting them access to the privileged SCC.
 
+```
+oc patch ds/restic --namespace velero --type json -p '[{"op":"add","path":"/spec/template/spec/containers/0/securityContext","value": { "privileged": true}}]'
+```	  
+
+You can run "kubectl logs" to check the velero installation. If you do not see errors is because it installed correctly.
+
+`kubectl logs deployment/velero -n velero`
+
+***
+### Setup Monitoring and PVC Watcher
 
 
 
