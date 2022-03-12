@@ -203,7 +203,7 @@ You can run "kubectl logs" to check the velero installation. If you do not see e
 
 velero-pvc-watcher is a Prometheus exporter that monitores all PVCs in the cluster and verifies that a matching `backup.velero.io/backup-volumes` or a `backup.velero.io/backup-volumes-excludes` is set.
 
-Note: Due to the design all unmounted PVCs will reported as not being backuped, since there is no configuration for them.
+Note: Due to the design all unmounted PVCs will reported as not being backed up, since there is no configuration for them.
 
 The PVC watcher comes with Helm. I'm going to download and install helm chart.
 
