@@ -228,6 +228,8 @@ Here is an example of config for prometheus to scaping it:
      - targets: ['velero-pvc-watcher.my-openshift.com']
 ```
 
+Now you can create a dashboard for this job and also alerting for that. More details on refrences.
+
 Velero by default exposes it's metrics. We can create a `service` for exposing the metrics and scrap it with prometheus. Also it can be publicly exposed with a `Route`. Let's create a `service` for Velero, Find it in `velero-svc.yaml` and run it with `oc apply -f velero-svc.yaml`.
 
 Now let's create a `Route` for it. Let's call it `route-velero.yaml`.Process to create it with `oc apply -f route-velero.yaml`.
