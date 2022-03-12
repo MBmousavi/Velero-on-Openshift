@@ -6,6 +6,7 @@ metadata:
   name: velero-svc
   labels:
     component: velero
+    deploy: velero
 spec:
   ports:
     - name: http
@@ -14,4 +15,5 @@ spec:
       targetPort: 8085
   selector:
     component: velero
+    deploy: velero
 ---
