@@ -1,0 +1,16 @@
+---
+kind: Route
+apiVersion: route.openshift.io/v1
+metadata:
+  name: velero-pvc-watcher-route
+  namespace: velero
+  labels:
+    app.kubernetes.io/name: velero-pvc-watcher 
+spec:
+  host: velero-pvc-watcher.my-openshift.com
+  to:
+    kind: Service
+    name: velero-pvc-watcher
+  port:
+    targetPort: http
+---
