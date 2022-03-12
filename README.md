@@ -208,6 +208,10 @@ Restic needs to access the pod's volume on hosts so we need to grant access. So 
 
 `oc adm policy add-scc-to-user privileged -z velero -n velero`
 
+By default a userland openshift namespace will not schedule pods on all nodes in the cluster. To schedule on all nodes the namespace needs an annotation:
+
+`oc annotate namespace velero openshift.io/node-selector=""`
+
 Create the credential file `credentials-velero`. The credentials must match the minio credentials you created before.
 
 ```
@@ -243,9 +247,19 @@ You can run "kubectl logs" to check the velero installation. If you do not see e
 ***
 ### Setup Monitoring and PVC Watcher
 
+velero-pvc-watcher is a Prometheus exporter that monitores all PVCs in the cluster and verifies that a matching `backup.velero.io/backup-volumes` or a `backup.velero.io/backup-volumes-excludes` is set.
 
+Note: Due to the design all unmounted PVCs will reported as not being backuped, since there is no configuration for them.
 
+The PVC watcher comes with Helm. I'm going to download and install helm chart.
 
+```
+helm repo add bitsbeats https://bitsbeats.github.io/helm-charts/
+helm repo update
+helm pull bitsbeats/velero-pvc-watcher
+tar xzf velero-pvc-watcher-0.2.4.tgz
+helm install  velero-pvc-watcher ./velero-pvc-watcher --namespace velero
+```
 
 
 
