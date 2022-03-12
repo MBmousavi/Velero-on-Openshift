@@ -50,7 +50,7 @@ Download the velero repo from GitHub. It includes velero binary command and some
 
 ```wget https://github.com/vmware-tanzu/velero/releases/download/v1.8.0/velero-v1.8.0-linux-amd64.tar.gz```
 
-```tar -xzf velero-v1.2.0-linux-amd64.tar.gz```
+```tar -xzf velero-v1.8.0-linux-amd64.tar.gz```
 
 Copy the velero binary command in PATH so you can use it globaly. Remember it usees credential just like `oc` or `kubectl` command. So you need to login before use velero command.
 
