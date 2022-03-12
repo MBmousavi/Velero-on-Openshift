@@ -76,53 +76,7 @@ minio-6b8ff5c8b6-r5mf8   1/1       Running     0          45s
 minio-setup-867lc        0/1       Completed   0          45s
 ```
 
-We will need the PV and PVC objects to point to our NFS Server. The PVC object must be under “velero” project. Here is the example `minio-volume.yaml` file. You will need to change according to your NFS server:
-
-```
----
-apiVersion: v1
-kind: PersistentVolume
-metadata:
-  annotations:
-    pv.kubernetes.io/bound-by-controller: "yes"
-  finalizers:
-  - kubernetes.io/pv-protection
-  name: minio-pv
-spec:
-  accessModes:
-  - ReadWriteOnce
-  capacity:
-    storage: 15Gi
-  claimRef:
-    apiVersion: v1
-    kind: PersistentVolumeClaim
-    name: minio-pv-claim
-    namespace: velero
-  nfs:
-    path: /exports/minio-storage
-    server: X.X.X.X
-  persistentVolumeReclaimPolicy: Retain
-
----
-apiVersion: v1
-kind: PersistentVolumeClaim
-metadata:
-  name: minio-pv-claim
-  namespace: velero
-spec:
-  accessModes:
-  - ReadWriteOnce
-  resources:
-    requests:
-      storage: 15Gi
-  volumeName: minio-pv
-```
-
-```
-oc apply -f minio-volume.yaml
-persistentvolume/minio-pv created
-persistentvolumeclaim/minio-pv-claim created
-```
+We will need the PV and PVC objects to point to our NFS Server. The PVC object must be under “velero” project. Find it in `minio-volume.yaml` example file. You will need to modify it according to your NFS server. Run `oc apply -f minio-volume.yaml` to create it.
 
 Before configuring minio to the PVC, make sure the PVC is bound to the PV (otherwise you will break your minio setup):
 
@@ -263,26 +217,7 @@ helm install  velero-pvc-watcher ./velero-pvc-watcher --namespace velero
 
 The PVC metrics will be exposed via ServiceName:2121/metrics and you can scrape it with prometheus. But if your monitoring stack is out side of Openshift cluster, you need to write a `Route` for creating a public url for PVC metrics.
 
-Here is an example of a Route for PVC Watcher, Let's call it `route-pvc-watcher.yaml`
-
-```
-kind: Route
-apiVersion: route.openshift.io/v1
-metadata:
-  name: velero-pvc-watcher-route
-  namespace: velero
-  labels:
-    app.kubernetes.io/name: velero-pvc-watcher 
-spec:
-  host: velero-pvc-watcher.my-openshift.com
-  to:
-    kind: Service
-    name: velero-pvc-watcher
-  port:
-    targetPort: http
-```
-
-Run `oc apply -f route-pvc-watcher.yaml` to create the route. The metrics are available on `/metrics`.
+An example of a Route for PVC Watcher, you can find in `route-pvc-watcher.yaml`. Run `oc apply -f route-pvc-watcher.yaml` to create the route. The metrics are available on `/metrics`.
 
 Here is an example of config for prometheus to scaping it:
 
@@ -293,44 +228,9 @@ Here is an example of config for prometheus to scaping it:
      - targets: ['velero-pvc-watcher.my-openshift.com']
 ```
 
-Velero by default exposes it's metrics. We can create a `service` for exposing the metrics and scrap it with prometheus. Also it can be publicly exposed with a `Route`. Let's create a `service` for Velero, Call it `velero-svc.yaml` and run it with `oc apply -f velero-svc.yaml`.
+Velero by default exposes it's metrics. We can create a `service` for exposing the metrics and scrap it with prometheus. Also it can be publicly exposed with a `Route`. Let's create a `service` for Velero, Find it in `velero-svc.yaml` and run it with `oc apply -f velero-svc.yaml`.
 
-```
-kind: Service
-apiVersion: v1
-metadata:
-  namespace: velero
-  name: velero-svc
-  labels:
-    component: velero
-spec:
-  ports:
-    - name: http
-      protocol: TCP
-      port: 80
-      targetPort: 8085
-  selector:
-    component: velero
-```
-
-Now let's create a `Route` for it. Let's call it `route-velero.yaml`. Process to create it with `oc apply -f route-velero.yaml`.
-
-```
-kind: Route
-apiVersion: route.openshift.io/v1
-metadata:
-  name: velero-svc-route
-  namespace: velero
-  labels:
-    component: velero 
-spec:
-  host: velero-svc.my-openshift.com
-  to:
-    kind: Service
-    name: velero-svc
-  port:
-    targetPort: 8085
-```
+Now let's create a `Route` for it. Let's call it `route-velero.yaml`.Process to create it with `oc apply -f route-velero.yaml`.
 
 Now everything is applied, Let's take a look of what we have in velero namespace:
 
@@ -410,16 +310,54 @@ For testing scenarion I deploy a Nginx with PV and PVC in a namespace, and creat
 Let's create a test namespace and grant proper service acounts.
 
 ```
-oc create namespace  mousavi
+oc create namespace mousavi
+oc create serviceaccount runasanyuid -n mousavi
 ```
 
+Deploy the nginx with PVC with `oc apply -f nginx-pvc.yaml`
 
+I put some random static contents in nginx root directory (/usr/share/nginx/html) which is mounted in it's PV.
+  
+Now let's get to backup. I'm gonna create a backup in "namespace level". It means backup every resources in namespace. 
+  
+```
+velero backup create nginx-pvc --include-namespaces mousavi --wait
 
+Backup request "nginx-pvc" submitted successfully.
+Waiting for backup to complete. You may safely press ctrl-c to stop waiting - your backup will continue in the background.
+...................................
+Backup completed with status: Completed. You may check for more information using the commands `velero backup describe nginx-pvc` and `velero backup logs nginx-pvc`.
+```
 
+Ok, The backup is done, Let's check the backup list.
+  
+```
+velero get backup
+  
+NAME        STATUS      ERRORS   WARNINGS   CREATED                         EXPIRES   STORAGE LOCATION   SELECTOR
+nginx-pvc   Completed   0        0          2022-03-12 10:14:51 -0500 EST   29d       default            <none>
+```
+Now let's the namespace, It will delete all the resources in the namespace, PV, serviceaccount, service, route, ...
+  
+```
+oc delete project mousavi
+```
 
+Now restore the backup:
 
+```
+velero restore create --from-backup nginx-pvc --wait
+```
 
+After a few moments you can see everything in the namespace have been created again.
 
+Check the restore status:
 
+```
+velero get restore
 
+NAME                       BACKUP      STATUS      STARTED                         COMPLETED                       ERRORS   WARNINGS   CREATED                         SELECTOR
+nginx-pvc-20220312102836   nginx-pvc   Completed   2022-03-12 10:28:36 -0500 EST   2022-03-12 11:07:00 -0500 EST   0        0          2022-03-12 10:28:36 -0500 EST   <none>
+```
 
+We can create scheduled backup with velero, for example run a backup job every houre or every night. You can find the complete document here: https://docs.d2iq.com/dkp/konvoy/1.6/backup/
