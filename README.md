@@ -232,7 +232,19 @@ Now you can create a dashboard for this job and also alerting for that. More det
 
 Velero by default exposes it's metrics. We can create a `service` for exposing the metrics and scrap it with prometheus. Also it can be publicly exposed with a `Route`. Let's create a `service` for Velero, Find it in `velero-svc.yaml` and run it with `oc apply -f velero-svc.yaml`.
 
-Now let's create a `Route` for it. Let's call it `route-velero.yaml`.Process to create it with `oc apply -f route-velero.yaml`.
+Now let's create a `Route` for it. Let's call it `route-velero.yaml` .Process to create it with `oc apply -f route-velero.yaml`.
+
+Here is an example of config for prometheus to scaping it:
+
+```
+- job_name: 'velero'
+  metrics_path: /metrics
+  static_configs:
+     - targets: ['velero-svc.my-openshift.com']
+```
+
+There is a Grafana dashboard that you can use for Velero, You can find it here: https://grafana.com/grafana/dashboards/11055
+
 
 Now everything is applied, Let's take a look of what we have in velero namespace:
 
@@ -283,8 +295,6 @@ route.route.openshift.io/velero-svc-route           velero-svc.my-openshift.com 
 NAME             STATUS   VOLUME     CAPACITY   ACCESS MODES   STORAGECLASS   AGE
 minio-pv-claim   Bound    minio-pv   15Gi      RWO            standard-csi   5h53m
 ```
-
-There is a Grafana dashboard that you can use for Velero, You can find it here: https://grafana.com/grafana/dashboards/11055
 
 Refrences:
   
