@@ -261,7 +261,157 @@ tar xzf velero-pvc-watcher-0.2.4.tgz
 helm install  velero-pvc-watcher ./velero-pvc-watcher --namespace velero
 ```
 
+The PVC metrics will be exposed via ServiceName:2121/metrics and you can scrape it with prometheus. But if your monitoring stack is out side of Openshift cluster, you need to write a `Route` for creating a public url for PVC metrics.
 
+Here is an example of a Route for PVC Watcher, Let's call it `route-pvc-watcher.yaml`
+
+```
+kind: Route
+apiVersion: route.openshift.io/v1
+metadata:
+  name: velero-pvc-watcher-route
+  namespace: velero
+  labels:
+    app.kubernetes.io/name: velero-pvc-watcher 
+spec:
+  host: velero-pvc-watcher.my-openshift.com
+  to:
+    kind: Service
+    name: velero-pvc-watcher
+  port:
+    targetPort: http
+```
+
+Run `oc apply -f route-pvc-watcher.yaml` to create the route. The metrics are available on `/metrics`.
+
+Here is an example of config for prometheus to scaping it:
+
+```
+- job_name: 'velero-pvc-watcher'
+  metrics_path: /metrics
+  static_configs:
+     - targets: ['velero-pvc-watcher.my-openshift.com']
+```
+
+Velero by default exposes it's metrics. We can create a `service` for exposing the metrics and scrap it with prometheus. Also it can be publicly exposed with a `Route`. Let's create a `service` for Velero, Call it `velero-svc.yaml` and run it with `oc apply -f velero-svc.yaml`.
+
+```
+kind: Service
+apiVersion: v1
+metadata:
+  namespace: velero
+  name: velero-svc
+  labels:
+    component: velero
+spec:
+  ports:
+    - name: http
+      protocol: TCP
+      port: 80
+      targetPort: 8085
+  selector:
+    component: velero
+```
+
+Now let's create a `Route` for it. Let's call it `route-velero.yaml`. Process to create it with `oc apply -f route-velero.yaml`.
+
+```
+kind: Route
+apiVersion: route.openshift.io/v1
+metadata:
+  name: velero-svc-route
+  namespace: velero
+  labels:
+    component: velero 
+spec:
+  host: velero-svc.my-openshift.com
+  to:
+    kind: Service
+    name: velero-svc
+  port:
+    targetPort: 8085
+```
+
+Now everything is applied, Let's take a look of what we have in velero namespace:
+
+```
+oc get all -n velero
+NAME                                      READY   STATUS      RESTARTS   AGE
+pod/minio-7bbf447f64-4wccw                1/1     Running     0          5h51m
+pod/minio-setup-2vc8d                     0/1     Completed   2          5h55m
+pod/restic-2jntd                          1/1     Running     0          5h21m
+pod/restic-2pf5j                          1/1     Running     0          5h9m
+pod/restic-47khk                          1/1     Running     0          5h21m
+pod/restic-4bh97                          1/1     Running     0          5h21m
+pod/restic-dbbdz                          1/1     Running     0          5h21m
+pod/restic-hl2r5                          1/1     Running     0          5h20m
+pod/restic-sdlg9                          1/1     Running     0          5h21m
+pod/restic-sm7ws                          1/1     Running     0          5h21m
+pod/restic-t9z97                          1/1     Running     0          5h21m
+pod/restic-vpplf                          1/1     Running     0          5h21m
+pod/velero-c658f7549-fjl5j                1/1     Running     0          5h21m
+pod/velero-pvc-watcher-84f6554745-hzhxg   1/1     Running     0          132m
+
+NAME                         TYPE        CLUSTER-IP       EXTERNAL-IP   PORT(S)    AGE
+service/minio                ClusterIP   172.30.101.217   <none>        9000/TCP   5h55m
+service/velero-pvc-watcher   ClusterIP   172.30.191.234   <none>        2121/TCP   132m
+service/velero-svc           ClusterIP   172.30.109.43    <none>        80/TCP     24m
+
+NAME                    DESIRED   CURRENT   READY   UP-TO-DATE   AVAILABLE   NODE SELECTOR   AGE
+daemonset.apps/restic   10        10        10      10           10          <none>          5h21m
+
+NAME                                 READY   UP-TO-DATE   AVAILABLE   AGE
+deployment.apps/minio                1/1     1            1           5h55m
+deployment.apps/velero               1/1     1            1           5h21m
+deployment.apps/velero-pvc-watcher   1/1     1            1           132m
+
+NAME                                            DESIRED   CURRENT   READY   AGE
+replicaset.apps/minio-669589dc8c                0         0         0       5h55m
+replicaset.apps/minio-7bbf447f64                1         1         1       5h51m
+replicaset.apps/velero-c658f7549                1         1         1       5h21m
+replicaset.apps/velero-pvc-watcher-84f6554745   1         1         1       132m
+
+NAME                    COMPLETIONS   DURATION   AGE
+job.batch/minio-setup   1/1           43s        5h55m
+
+NAME                                                HOST/PORT                                PATH                 SERVICES             PORT
+route.route.openshift.io/velero-pvc-watcher-route   velero-pvc-watcher.my-openshift.com      velero-pvc-watcher   http                 None
+route.route.openshift.io/velero-svc-route           velero-svc.my-openshift.com              velero-svc           8085                 None
+
+NAME             STATUS   VOLUME     CAPACITY   ACCESS MODES   STORAGECLASS   AGE
+minio-pv-claim   Bound    minio-pv   15Gi      RWO            standard-csi   5h53m
+```
+
+There is a Grafana dashboard that you can use for Velero, You can find it here: https://grafana.com/grafana/dashboards/11055
+
+Refrences:
+  
+https://velero.io/docs/v1.8/restic/
+  
+https://github.com/bitsbeats/velero-pvc-watcher
+
+***
+### Velero in Action
+
+Now Velero is up and running, We need to test a complete scenario: Create a backup, simulate a dicaster and restoring the backup.
+As I mentioned before velero has a binary command that we use it to do all tasks. Run the `velero version` to see the current server and client installed version:
+  
+```
+Version: v1.8.0
+      Git commit: a818c97dde2034385d7bf25e0ac2a2e055a0b372
+Server:
+      Version: v1.8.0
+```
+
+You will get an Unauthorized error in the Server section if you forget to `oc login` before that.
+  
+For testing scenarion I deploy a Nginx with PV and PVC in a namespace, and create a backup of it with velero, then I delete the whole namespace and I will try to restore the backup.
+
+Let's create a test namespace and grant proper service acounts.
+
+```
+oc create namespace  mousavi
+```
 
 
 
