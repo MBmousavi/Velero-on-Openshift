@@ -1,0 +1,16 @@
+---
+kind: Route
+apiVersion: route.openshift.io/v1
+metadata:
+  name: velero-svc-route
+  namespace: velero
+  labels:
+    component: velero 
+spec:
+  host: velero-svc.my-openshift.com
+  to:
+    kind: Service
+    name: velero-svc
+  port:
+    targetPort: 8085
+---
